@@ -1,0 +1,22 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1561626340186.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "370202481",
+    "id" : "45D2E1F7",
+    "lastKnownWriteTime" : 1561642726,
+    "last_content_update" : 1561642726377,
+    "path" : "~/Dropbox/Research_project/19_WakayamaCompe/Prgrm/main.R",
+    "project_path" : null,
+    "properties" : {
+        "cursorPosition" : "5,0",
+        "scrollLine" : "0"
+    },
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

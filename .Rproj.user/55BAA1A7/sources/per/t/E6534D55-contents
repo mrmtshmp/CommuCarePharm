@@ -1,0 +1,74 @@
+install.packages("GISTools")
+require(GISTools)
+
+
+
+
+install.packages(c("XML", "tm", "wordcloud", "RColorBrewer"))
+
+###ライブラリーの読み込み#####
+library(tcltk)
+library(XML)
+library(tm)
+library(wordcloud)
+library(RColorBrewer)
+########
+
+
+###タグクラウドのテキストの色を設定#####
+Col <- brewer.pal(8, "Dark2") #文字色の指定
+########
+
+###プロットする単語の出現数設定。"論文タイトル", "アブストラクト"の設定です。以上での抽出結果となります。#####
+WordFreq <- c(5, 15)
+########
+
+###データの読み込み#####
+selectAXlm <- paste(as.character(tkgetOpenFile(title = "xmlファイルを選択",filetypes = '{"xmlファイル" {".xml"}}',initialfile = "*.xml")), sep = "", collapse =" ")
+MasterAnaData <- xmlInternalTreeParse(selectAXlm)
+########
+
+###結果保存先のフォルダを設定#####
+SaveDir <- as.data.frame(paste(as.character(tkchooseDirectory(title = "データ保存フォルダを選択"), sep = "", collapse =" "))) #初期dirpathの取得準備
+SaveDir <- paste(SaveDir[1:(nrow(SaveDir)),], sep = " ", collapse = "/" ) #保存pathの取得
+setwd(SaveDir)
+########
+
+###xmlファイルから論文タイトルとアブストラクトを抽出#####
+###xmlの操作は要素名を抽出し、その値をまとめることが多いと思います。多くはxpathSApply()で補えると思います。多くの要望があればxmlライブラリのコマンドをまとめようかなと思います。#####
+
+Title <- as.data.frame(xpathSApply(MasterAnaData, "//ArticleTitle", xmlValue)) #論文タイトルの抽出
+Abstract <-as.data.frame(xpathSApply(MasterAnaData, "//AbstractText", xmlValue)) #アブストラクトの抽出
+########
+
+AnaList <- c("Title", "Abstract") #抽出するデータ名により変更
+
+for(i in seq(AnaList)){
+  
+  ###テキストマイニングの設定、お好みに合わせてください#####
+  CorMaster <- Corpus(DataframeSource(eval(parse(text = AnaList[i])))) #コーパスの作成
+  CorMaster <- tm_map(CorMaster, stripWhitespace) #空白の削除
+  CorMaster <- tm_map(CorMaster, removeNumbers) #数字の削除
+  CorMaster <- tm_map(CorMaster, removePunctuation) #句読点の削除
+  CorMaster <- tm_map(CorMaster, removeWords, stopwords("english")) #and, or等の削除
+  TermVec <- DocumentTermMatrix(CorMaster) #タームマトリックスの集計
+  ########
+  
+  ###単語解析結果をデータフレーム化#####
+  AnalyticsAllWords <- as.data.frame(apply(TermVec, 2, sum)) #単語の出現率を集計
+  AnalyticsAllWords <- cbind(rownames(AnalyticsAllWords), AnalyticsAllWords)
+  AnalyticsAllWords <- subset(AnalyticsAllWords, !(AnalyticsAllWords[, 1] %in% c("chlorella", "the", "this", "can", "thus", "these")) )#除去したい単語を設定
+  AnalyticsAllWords <- AnalyticsAllWords[sort.list(AnalyticsAllWords[, 2], decreasing=TRUE),] #出現数を降順で並び替え
+  AnalyticsWords <- subset(AnalyticsAllWords, AnalyticsAllWords[, 2] >= WordFreq[i]) #指定した数以上で抽出
+  colnames(AnalyticsAllWords) <- c("単語", "出現数") #行名の設定
+  ########
+  
+  png(paste(AnaList[i], ".png", seq = ""), width = 1280, height = 800) #plotをpngで保存
+  ###タグクラウドのプロット#####
+  wordcloud(AnalyticsWords[, 1], AnalyticsWords[, 2], scale=c(8,.2),
+            random.order = FALSE, rot.per = .15, colors = Col)
+  ########
+  dev.off()
+  
+  write.csv(AnalyticsAllWords, paste(AnaList[i], "_結果.csv", seq = ""), row.names = FALSE) #結果をcsvで保存
+}

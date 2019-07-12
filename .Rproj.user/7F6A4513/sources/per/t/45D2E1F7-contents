@@ -1,0 +1,245 @@
+install.packages("GISTools")
+require(GISTools)
+
+
+
+
+install.packages(c("XML", "tm", "wordcloud", "RColorBrewer"))
+
+###ライブラリーの読み込み#####
+library(tcltk)
+library(XML)
+library(tm)
+library(wordcloud)
+library(RColorBrewer)
+########
+
+
+dir.Data   <- "../Data"
+dir.Output <- "../Output" 
+
+fn.Data_region   <-  "/190626/A32-16_30_GML/gml/A32-16_30.xml"
+fn.Output_region <-  "/190626/A32-16_30_GML/gml/A32-16_30.xml"
+
+
+# Load XML file -----------------------------------------------------------
+
+selectAXlm <- paste(
+  as.character(
+    tkgetOpenFile(
+      title = tkgetOpenFile(
+        title = sprintf("%s/%s", dir.Data, fn.Data_region),
+        filetypes = '{"xmlファイル" {".xml"}}',
+        initialfile = "*.xml"
+        )
+      )
+    ),
+    sep = "", collapse =" ")
+MasterAnaData <- xmlInternalTreeParse(
+  selectAXlm
+  )
+########
+
+
+# School name and address -------------------------------------------------
+
+df.ScNameAddr <- data.frame(
+  
+  "ID"   =  xpathSApply(
+    MasterAnaData,
+    "//ksj:PublicJuniorHighSchool" , 
+    xmlGetAttr, 
+    "gml:id"
+    ),
+  
+  "name" = xpathSApply(
+    MasterAnaData,
+    "//ksj:PublicJuniorHighSchool/ksj:name",
+    xmlValue),
+  
+  "address" = xpathSApply(
+    MasterAnaData,
+    "//ksj:PublicJuniorHighSchool/ksj:address",
+    xmlValue)
+  )
+
+
+# GIS mesh of school zone -------------------------------------------------
+
+ScRegionalPos <- data.frame(
+    
+  "ID"   =  xpathSApply(
+    MasterAnaData,
+    "//gml:Curve" , 
+    xmlGetAttr, 
+    "gml:id"
+    ),
+  
+  "pos" =  data.frame(
+    "pos" = xpathSApply(
+      MasterAnaData, 
+      "//gml:posList",
+      xmlValue
+      )
+    )
+  ) %>% 
+
+  ddply(
+    .(ID),
+    function(D){
+      vec = strsplit(
+        as.character(D$pos),
+        "\n\t"
+        )
+      res = data.frame(
+        "pos.xy" = ldply(vec) %>%
+          t()
+        )
+      return(
+        res
+        )
+      }
+    ) %>%
+  filter(
+    pos.xy != ""
+    ) %>%
+  mutate(
+    id2 = cumsum(duplicated(ID))
+    ) %>%
+  
+  ddply(
+    .(ID, id2),
+    function(D){
+      vec = strsplit(
+        as.character(D$pos.xy),
+        " "
+        ) %>%
+        ldply()
+      
+      return(vec)
+    }
+  )
+
+###結果保存先のフォルダを設定#####
+SaveDir <- as.data.frame(
+  paste(
+    as.character(
+      tkchooseDirectory(
+        title = dir.Output
+        ),
+      sep = "", 
+      collapse =" "
+      )
+    )
+  ) #初期dirpathの取得準備
+
+SaveDir <- paste(
+  SaveDir[1:(nrow(SaveDir)),],
+  sep = " ", collapse = "/" 
+  ) #保存pathの取得
+
+setwd(SaveDir)
+########
+
+###xmlファイルから論文タイトルとアブストラクトを抽出#####
+###xmlの操作は要素名を抽出し、その値をまとめることが多いと思います。多くはxpathSApply()で補えると思います。多くの要望があればxmlライブラリのコマンドをまとめようかなと思います。#####
+
+tr <- getNodeSet(
+  MasterAnaData, 
+  "//ksj:PublicJuniorHighSchool"
+  )
+
+ScRegionalPos <- lapply(
+  as.data.frame(
+  xpathSApply(
+    MasterAnaData, 
+    "//gml:posList",
+    xmlValue
+    )
+  ) #論文タイトルの抽出
+
+ScName_Ksj <-as.data.frame(
+  tr   = xpathSApply(
+    tr, "." , xmlGetAttr, "id"),
+  ScName = xpathSApply(
+    tr, "//ksj:name", 
+    xmlValue
+    )
+  ) #アブストラクトの抽出
+
+
+ScAdressDist_Ksj <-as.data.frame(
+  xpathSApply(
+    MasterAnaData, "//ksj:schoolDistrictFileName", 
+    xmlValue
+  )
+) #アブストラクトの抽出
+ScAdress_Ksj <-as.data.frame(
+  xpathSApply(
+    MasterAnaData, "//ksj:address", 
+    xmlValue
+  )
+  ) #アブストラクトの抽出
+########
+
+
+tr <- getNodeSet(
+  MasterAnaData, 
+  "//ksj:PublicJuniorHighSchool"
+  )
+
+x <- lapply(
+  tr, function(x)  
+    data.frame(
+      tr = xpathSApply(x, "." , xmlGetAttr, "gml:id"),
+      A = xpathSApply(x, ".//ksj:name", xmlValue),
+      B = xpathSApply(x, ".//ksj:address", xmlValue),
+      C = xpathSApply(x, ".//gml:posList", xmlValue) 
+      )
+  )
+
+AnaList <- c(
+  ScRegionalPos, 
+  as.data.frame("name"=ScName_Ksj), 
+  as.data.frame("address" = ScAdress_Ksj)
+  ) #抽出するデータ名により変更
+
+
+test <- do.call("rbind", AnaList)
+
+# tr   A    B     C
+# 1  1 100  abc  true
+# 2  2 200 wxyz FALSE
+# 3  2 300 wxyz FALSE
+
+
+
+for(i in seq(AnaList)){
+  
+  ###テキストマイニングの設定、お好みに合わせてください#####
+  CorMaster <- Corpus(DataframeSource(eval(parse(text = AnaList[i])))) #コーパスの作成
+  CorMaster <- tm_map(CorMaster, stripWhitespace) #空白の削除
+  CorMaster <- tm_map(CorMaster, removeNumbers) #数字の削除
+  CorMaster <- tm_map(CorMaster, removePunctuation) #句読点の削除
+  CorMaster <- tm_map(CorMaster, removeWords, stopwords("english")) #and, or等の削除
+  TermVec <- DocumentTermMatrix(CorMaster) #タームマトリックスの集計
+  ########
+  
+  ###単語解析結果をデータフレーム化#####
+  AnalyticsAllWords <- as.data.frame(apply(TermVec, 2, sum)) #単語の出現率を集計
+  AnalyticsAllWords <- cbind(rownames(AnalyticsAllWords), AnalyticsAllWords)
+  AnalyticsAllWords <- subset(AnalyticsAllWords, !(AnalyticsAllWords[, 1] %in% c("chlorella", "the", "this", "can", "thus", "these")) )#除去したい単語を設定
+  AnalyticsAllWords <- AnalyticsAllWords[sort.list(AnalyticsAllWords[, 2], decreasing=TRUE),] #出現数を降順で並び替え
+  AnalyticsWords <- subset(AnalyticsAllWords, AnalyticsAllWords[, 2] >= WordFreq[i]) #指定した数以上で抽出
+  colnames(AnalyticsAllWords) <- c("単語", "出現数") #行名の設定
+  ########
+  
+  png(paste(AnaList[i], ".png", seq = ""), width = 1280, height = 800) #plotをpngで保存
+  ###タグクラウドのプロット#####
+  wordcloud(AnalyticsWords[, 1], AnalyticsWords[, 2], scale=c(8,.2),
+            random.order = FALSE, rot.per = .15, colors = Col)
+  ########
+  dev.off()
+  
+  write.csv(AnalyticsAllWords, paste(AnaList[i], "_結果.csv", seq = ""), row.names = FALSE) #結果をcsvで保存
+}

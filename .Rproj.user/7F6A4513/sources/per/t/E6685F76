@@ -1,0 +1,22 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1561642797708.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "4198415120",
+    "id" : "E6685F76",
+    "lastKnownWriteTime" : 1561642855,
+    "last_content_update" : 1561642855400,
+    "path" : "~/Dropbox/Research_project/19_WakayamaCompe/Github_submit/Prgrm/Sub/require_bioconductor.R",
+    "project_path" : "Sub/require_bioconductor.R",
+    "properties" : {
+        "cursorPosition" : "42,3",
+        "scrollLine" : "27"
+    },
+    "relative_order" : 2,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}
