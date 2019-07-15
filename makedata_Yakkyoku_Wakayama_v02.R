@@ -17,9 +17,11 @@ dir.Data   <- "../Data"
 dir.Output <- "../Output" 
 dir.Sub    <- "./Sub"
 
-fn.Data_CommCareCenter   <-  '190712/sityouson-houkatsu.xlsx'
-fn.Data_StreetBlock<-  "/190703/30000-12.0b/30_2018.csv"
 
+fn.Data_StreetBlock_Wakayama      <-  "/190703/30000-12.0b/30_2018.csv"
+
+fn.out.raw.MasterAnaData_Wakayama <-   "rec_sent/190713/6wakayama-kikanzentai-yakkyoku_3.csv"
+# output of 'Prgrm_IshiiSensei/makedata_Mie.txt'
 
 fn.Sub_require_libraries <- "require_libraries.R"
 
@@ -31,26 +33,23 @@ source(sprintf("%s/%s", dir.Sub, fn.Sub_require_libraries))
 
 # Load XLSX file -----------------------------------------------------------
 
-raw.MasterAnaData <- read_xlsx(
-  path = sprintf("%s/%s", dir.Data, fn.Data_CommCareCenter),
-  skip = 1
-  )
-  # xmlInternalTreeParse(
-  # selectAXlm
-  # )
+out.raw.MasterAnaData <- read.csv(
+  sprintf(
+    "%s/%s",
+    dir.Data,
+    fn.out.raw.MasterAnaData_Wakayama),
+  fileEncoding = 'utf-8'
+)
 
-colnames(raw.MasterAnaData) <- c("ID","Town","Note","Name","Area","Postal","Address","Tel.Numb")
-
-out.raw.MasterAnaData <- raw.MasterAnaData
+out.raw.MasterAnaData$ID <- c(1:nrow(out.raw.MasterAnaData))
 
 # StreetAddress to GIS mesh -------------------------------------------------
 
-
 raw.StreetBlock <- read.csv(
-  file = sprintf("%s/%s", dir.Data, fn.Data_StreetBlock),
+  file = sprintf("%s/%s", dir.Data, fn.Data_StreetBlock_Wakayama),
   fileEncoding = "shift-jis",
   encoding = "utf-8"
-  )
+) 
 
 colnames(
   raw.StreetBlock
@@ -60,8 +59,7 @@ colnames(
   "StreetID","Address_3",
   "Loc_1", "Loc_2",
   "Dumm1","Dumm2"
-  )
-
+)
 
 sub.table <- matrix(
   c("一丁目","二丁目", "三丁目","四丁目","五丁目","六丁目","七丁目","八丁目","九丁目","十丁目","十一丁目","十二丁目","十三丁目","十四丁目",
@@ -91,19 +89,18 @@ out.raw.MasterAnaData$StreetAddress.x <-
   ChomeSubs(out.raw.MasterAnaData$StreetAddress.x)
 
 
-
 MasterAnaData <- out.raw.MasterAnaData %>%
   ddply(
-    .(ID, Address),
+    .(ID, StreetAddress.x),
     function(D){
       raw.StreetBlock$StreetAddress_str_replaced <- str_replace(
         string = raw.StreetBlock$StreetAddress,pattern = "長崎県",""
         )
       match.score = stringdist(
-        D$Address, 
+        D$StreetAddress.x, 
         raw.StreetBlock$StreetAddress_str_replaced,
         method = "lcs"
-        )
+      )
       raw.StreetBlock$score <- match.score
       scan = which(match.score==min(match.score))[1]
       print(head(raw.StreetBlock))
@@ -111,26 +108,24 @@ MasterAnaData <- out.raw.MasterAnaData %>%
         scan,
         c("StreetAddress", "Loc_1", "Loc_2")
         ]
-  #    print(out)
+      #    print(out)
       return(out)
-      }
-    ) %>%
+    }
+  ) %>%
   left_join(
     out.raw.MasterAnaData
-    )
+  )
 
 MasterAnaData$LatLong <- sprintf(
   "%s:%s", 
   MasterAnaData$Loc_1, 
   MasterAnaData$Loc_2
-  )
+)
 MasterAnaData$Tip <- sprintf(
   "%s__%s",
-  MasterAnaData$Name,
-  MasterAnaData$Note
-#  iconv(MasterAnaData$Name,from="shift-jis",to="utf-8"),
-#  iconv(MasterAnaData$Note,from="shift-jis",to="utf-8")
-  )
+  iconv(MasterAnaData$Name,from="shift-jis",to="utf-8"),
+  iconv(MasterAnaData$Flg,from="shift-jis",to="utf-8")
+)
 
 MapDat <- MasterAnaData[,c("LatLong","Tip")]
 
@@ -138,7 +133,7 @@ GeoMarker <- gvisMap(
   MapDat, 
   locationvar = "LatLong", 
   tipvar    = "Tip",
-#  sizevar   = 
+  #  sizevar   = 
   options=list(
     showTip=TRUE,#TRUE,
     showLine=TRUE,
@@ -154,7 +149,7 @@ GeoMarker <- gvisGeoChart(
   hovervar    = "Tip",
   sizevar = "Numb.FullTime",
   options = list(region="JP")
-  )
+)
 
 
 plot(GeoMarker)
@@ -162,11 +157,5 @@ plot(GeoMarker)
 write.csv(MasterAnaData,   sprintf(
   "%s/%s",
   dir.Data,
-  "Wakayama_CommuCareCenter_MasterAnaData.csv"),
-  fileEncoding = 'utf-8'
-  )
-
-
-# Endrant -----------------------------------------------------------------
-
-
+  "Wakayama_MasterAnaData.csv")
+)
