@@ -157,12 +157,19 @@ pts <- as.matrix(
     mutate_if(is.character,as.numeric)
   )
 
-
 spts <- SpatialPoints(
   pts[,c("Loc_2","Loc_1")],
   proj4string=CRS('+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0')
   )
-spts <- spTransform(spts,CRS('+init=epsg:4612'))
+
+sptsDataframe <- SpatialPointsDataFrame(
+  pts[,c("Loc_2","Loc_1")],
+  data=as.data.frame(pts[,c("Numb.FullTime","Numb.PartTime")]),
+  proj4string=CRS('+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0')
+  )
+
+spts          <- spTransform(spts,CRS('+init=epsg:4612'))
+sptsDataframe <- spTransform(sptsDataframe,CRS('+init=epsg:4612'))
 
 # Spatial queries for community care center ---------------------------------------------------------
 
@@ -194,8 +201,42 @@ Yr2025 <- c(
   "PT19_2025"
   )
 
+df.long.Shape.mesh.pop_Est <- 
+  Shape.mesh.pop_Est[,Yr2025] %>%
+  gather( DtName, val, -geometry)
 
-cols = 
+df.long.Shape.mesh.pop_Est <- df.long.Shape.mesh.pop_Est %>%
+  mutate(
+    val=round(val)
+    )
+
+p1 <- mapview(
+  df.long.Shape.mesh.pop_Est %>% filter(DtName=='PT14_2025'),
+  zcol='val',
+  col.regions = c(
+    rep("white",1),
+    brewer.pal(9, "BuPu"),
+    brewer.pal(9, "PuOr"),
+    brewer.pal(9, "OrRd"),
+    rep('red', 256)
+    )
+  ) +
+  mapview(
+    sptsDataframe %>% st_as_sf(),
+    zcol='Numb.FullTime',#[as.factor(pts[,"Numb.PartTime"])],   
+    col.regions = c(
+      "white",
+      brewer.pal(2, "RdPu"),
+      brewer.pal(3, "GnBu"),
+      rep("black",20)
+      ),#mapviewGetOption("raster.palette")(20),
+    pch=10
+    
+#          cex=0.5
+          )
+
+
+gridExtra::grid.arrange(p1,  ncol = 1)
 
 pdf('PT_2025.pdf')
 plot(
